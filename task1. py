@@ -1,0 +1,99 @@
+import sqlite3
+from difflib import SequenceMatcher
+
+# -----------------------------
+# Database Setup
+# -----------------------------
+conn = sqlite3.connect("cloud_database.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    email TEXT UNIQUE,
+    phone TEXT
+)
+""")
+
+conn.commit()
+
+
+# -----------------------------
+# Similarity Function
+# -----------------------------
+def similarity(a, b):
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+# -----------------------------
+# Validate New Record
+# -----------------------------
+def validate_record(name, email, phone):
+
+    cursor.execute("SELECT name, email, phone FROM users")
+    records = cursor.fetchall()
+
+    for existing_name, existing_email, existing_phone in records:
+
+        # Exact Duplicate
+        if email == existing_email:
+            return "REDUNDANT"
+
+        # Similar Record
+        name_score = similarity(name, existing_name)
+        phone_score = similarity(phone, existing_phone)
+
+        if name_score > 0.90 and phone_score > 0.90:
+            return "FALSE POSITIVE"
+
+    return "UNIQUE"
+
+
+# -----------------------------
+# Add Record
+# -----------------------------
+def add_record(name, email, phone):
+
+    status = validate_record(name, email, phone)
+
+    if status == "UNIQUE":
+        cursor.execute(
+            "INSERT INTO users(name,email,phone) VALUES(?,?,?)",
+            (name, email, phone)
+        )
+        conn.commit()
+        print("✅ Record Added Successfully")
+
+    elif status == "REDUNDANT":
+        print("❌ Duplicate Record Detected")
+
+    elif status == "FALSE POSITIVE":
+        print("⚠ Similar Record Found (False Positive)")
+        print("Please verify manually.")
+
+
+# -----------------------------
+# Display Database
+# -----------------------------
+def show_database():
+
+    cursor.execute("SELECT * FROM users")
+
+    print("\nCloud Database")
+    print("-" * 50)
+
+    for row in cursor.fetchall():
+        print(row)
+
+
+# -----------------------------
+# Example
+# -----------------------------
+add_record("Rahul Sharma", "rahul@gmail.com", "9876543210")
+add_record("Rahul Sharma", "rahul@gmail.com", "9876543210")
+add_record("Rahul S.", "rahuls@gmail.com", "9876543210")
+
+show_database()
+
+conn.close()
